@@ -8,23 +8,68 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRightLeft, Coins, Send, Shield, Percent } from 'lucide-react';
+import { ArrowRightLeft, Coins, Send, Shield, Percent, Loader2 } from 'lucide-react';
 import { useWalletStore } from '@/store/wallet-store';
 import { toast } from 'sonner';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { transactionApi, frothApi } from '@/lib/api-client';
+import { executeInsuredAction } from '@/lib/flow-transactions';
+import { TransactionHistory } from '@/components/transaction-history';
 
 type ActionType = 'swap' | 'mint' | 'transfer';
 
 export function InsurePage() {
   const { user } = useWalletStore();
+  const queryClient = useQueryClient();
   const [actionType, setActionType] = useState<ActionType>('swap');
   const [amount, setAmount] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [retries, setRetries] = useState('3');
-  const [frothStaked, setFrothStaked] = useState(1500);
+
+  const { data: stakerData } = useQuery({
+    queryKey: ['staker', user?.addr],
+    queryFn: () => frothApi.getStaker(user.addr!),
+    enabled: !!user?.addr,
+  });
+
+  const frothStaked = stakerData?.data?.stakedAmount || 0;
 
   const baseFee = parseFloat(amount) * 0.02 || 0;
   const discount = Math.min(frothStaked / 100, 20);
   const finalFee = baseFee * (1 - discount / 100);
   const savings = baseFee - finalFee;
+
+  const executeMutation = useMutation({
+    mutationFn: async () => {
+      const result = await executeInsuredAction(
+        actionType,
+        parseFloat(amount),
+        recipient || user.addr!,
+        parseInt(retries)
+      );
+      
+      await transactionApi.execute(
+        user.addr!,
+        actionType,
+        parseFloat(amount),
+        recipient || undefined,
+        parseInt(retries),
+        result.transactionId,
+        result.status
+      );
+      
+      return result;
+    },
+    onSuccess: (result) => {
+      toast.success(`Transaction protected! TX ID: ${result.transactionId}`);
+      setAmount('');
+      setRecipient('');
+      queryClient.invalidateQueries({ queryKey: ['user-actions', user.addr] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to execute transaction');
+    },
+  });
 
   const handleExecute = () => {
     if (!user.loggedIn) {
@@ -35,7 +80,7 @@ export function InsurePage() {
       toast.error('Please enter a valid amount');
       return;
     }
-    toast.success('Protected transaction initiated!');
+    executeMutation.mutate();
   };
 
   const actionIcons = {
@@ -113,16 +158,130 @@ export function InsurePage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (FLOW)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
+              {actionType === 'transfer' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (FLOW)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient">Recipient Address</Label>
+                    <Input
+                      id="recipient"
+                      type="text"
+                      placeholder="0x..."
+                      value={recipient}
+                      onChange={(e) => setRecipient(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {actionType === 'mint' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="collection">NFT Collection</Label>
+                    <Select defaultValue="topshot">
+                      <SelectTrigger id="collection">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="topshot">NBA Top Shot</SelectItem>
+                        <SelectItem value="allday">NFL All Day</SelectItem>
+                        <SelectItem value="disney">Disney Pinnacle</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Mint Price (FLOW)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Quantity</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      placeholder="1"
+                      defaultValue="1"
+                      min="1"
+                    />
+                  </div>
+                </>
+              )}
+
+              {actionType === 'swap' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="fromToken">From Token</Label>
+                    <Select defaultValue="flow">
+                      <SelectTrigger id="fromToken">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="flow">FLOW</SelectItem>
+                        <SelectItem value="usdc">USDC</SelectItem>
+                        <SelectItem value="fusd">FUSD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="toToken">To Token</Label>
+                    <Select defaultValue="usdc">
+                      <SelectTrigger id="toToken">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="usdc">USDC</SelectItem>
+                        <SelectItem value="fusd">FUSD</SelectItem>
+                        <SelectItem value="flow">FLOW</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount to Swap</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="slippage">Slippage Tolerance (%)</Label>
+                    <Select defaultValue="0.5">
+                      <SelectTrigger id="slippage">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0.1">0.1%</SelectItem>
+                        <SelectItem value="0.5">0.5%</SelectItem>
+                        <SelectItem value="1">1%</SelectItem>
+                        <SelectItem value="3">3%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="retries">Max Retries</Label>
@@ -137,15 +296,6 @@ export function InsurePage() {
                     <SelectItem value="5">5 retries</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="recipient">Recipient (optional)</Label>
-                <Input
-                  id="recipient"
-                  type="text"
-                  placeholder="0x..."
-                />
               </div>
             </CardContent>
           </Card>
@@ -207,14 +357,25 @@ export function InsurePage() {
                 className="w-full" 
                 size="lg"
                 onClick={handleExecute}
-                disabled={!user.loggedIn || !amount}
+                disabled={!user.loggedIn || !amount || executeMutation.isPending}
               >
-                <Shield className="h-4 w-4 mr-2" />
-                Execute Protected Transaction
+                {executeMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Execute Protected Transaction
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
         </div>
+
+        <TransactionHistory />
 
         <Card>
           <CardHeader>

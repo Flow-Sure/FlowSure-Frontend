@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Shield, Clock, DollarSign, Vault } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { metricsApi } from '@/lib/api-client';
+import { metricsApi, transactionApi } from '@/lib/api-client';
 import { useWalletStore } from '@/store/wallet-store';
 
 export function DashboardPage() {
@@ -14,27 +14,37 @@ export function DashboardPage() {
   const { data: vaultData } = useQuery({
     queryKey: ['vault-metrics'],
     queryFn: () => metricsApi.getVault(),
-    enabled: user.loggedIn,
+    enabled: !!user?.loggedIn,
   });
 
   const { data: protectionData } = useQuery({
     queryKey: ['protection-metrics'],
     queryFn: () => metricsApi.getProtection(),
-    enabled: user.loggedIn,
+    enabled: !!user?.loggedIn,
   });
 
-  const mockProtections = [
-    { id: 1, type: 'Swap', status: 'active', amount: '100 FLOW', timestamp: '2 hours ago' },
-    { id: 2, type: 'Mint', status: 'active', amount: '50 FLOW', timestamp: '5 hours ago' },
-  ];
+  const { data: userActionsData } = useQuery({
+    queryKey: ['user-actions', user?.addr],
+    queryFn: () => transactionApi.getUserActions(user.addr!),
+    enabled: !!user?.addr,
+    refetchInterval: 5000,
+  });
 
-  const mockRetryQueue = [
-    { id: 1, type: 'Transfer', attempts: 2, nextRetry: '00:45', amount: '25 FLOW' },
-  ];
+  const actions = userActionsData?.data?.actions || [];
+  const stats = userActionsData?.data?.stats || { pending: 0, success: 0, failed: 0 };
 
-  const mockClaims = [
-    { id: 1, type: 'Compensation', amount: '10 FLOW', status: 'completed', timestamp: '1 day ago' },
-  ];
+  const activeProtections = actions.filter((a: any) => a.status === 'PENDING' || a.status === 'RETRYING');
+  const retryQueue = actions.filter((a: any) => a.status === 'RETRYING');
+  const compensations = actions.filter((a: any) => a.status === 'COMPENSATED');
+
+  const formatTimestamp = (timestamp: number) => {
+    const now = Date.now() / 1000;
+    const diff = now - timestamp;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    return `${Math.floor(diff / 86400)} days ago`;
+  };
 
   return (
     <MainLayout>
@@ -51,7 +61,7 @@ export function DashboardPage() {
               <Shield className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockProtections.length}</div>
+              <div className="text-2xl font-bold">{activeProtections.length}</div>
               <p className="text-xs text-muted-foreground">Transactions protected</p>
             </CardContent>
           </Card>
@@ -62,7 +72,7 @@ export function DashboardPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockRetryQueue.length}</div>
+              <div className="text-2xl font-bold">{retryQueue.length}</div>
               <p className="text-xs text-muted-foreground">Pending retries</p>
             </CardContent>
           </Card>
@@ -73,7 +83,7 @@ export function DashboardPage() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">45 FLOW</div>
+              <div className="text-2xl font-bold">{compensations.length * 5} FLOW</div>
               <p className="text-xs text-muted-foreground">From compensations</p>
             </CardContent>
           </Card>
@@ -98,18 +108,21 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockProtections.map((protection) => (
-                  <div key={protection.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+                {activeProtections.map((action: any) => (
+                  <div key={action.actionId} className="flex items-center justify-between border-b pb-4 last:border-0">
                     <div>
-                      <p className="font-medium">{protection.type}</p>
-                      <p className="text-sm text-muted-foreground">{protection.timestamp}</p>
+                      <p className="font-medium">{action.actionType}</p>
+                      <p className="text-sm text-muted-foreground">{formatTimestamp(action.createdAt)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{protection.amount}</p>
-                      <Badge variant="default">{protection.status}</Badge>
+                      <p className="font-medium">{action.amount} FLOW</p>
+                      <Badge variant="default">{action.status}</Badge>
                     </div>
                   </div>
                 ))}
+                {activeProtections.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">No active protections</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -121,19 +134,19 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockRetryQueue.map((retry) => (
-                  <div key={retry.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+                {retryQueue.map((action: any) => (
+                  <div key={action.actionId} className="flex items-center justify-between border-b pb-4 last:border-0">
                     <div>
-                      <p className="font-medium">{retry.type}</p>
-                      <p className="text-sm text-muted-foreground">Attempt {retry.attempts}/3</p>
+                      <p className="font-medium">{action.actionType}</p>
+                      <p className="text-sm text-muted-foreground">Attempt {action.retries}/{action.maxRetries}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{retry.amount}</p>
-                      <Badge variant="secondary">Next: {retry.nextRetry}</Badge>
+                      <p className="font-medium">{action.amount} FLOW</p>
+                      <Badge variant="secondary">Retrying</Badge>
                     </div>
                   </div>
                 ))}
-                {mockRetryQueue.length === 0 && (
+                {retryQueue.length === 0 && (
                   <p className="text-center text-muted-foreground py-4">No pending retries</p>
                 )}
               </div>
@@ -148,18 +161,21 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockClaims.map((claim) => (
-                <div key={claim.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+              {compensations.map((action: any) => (
+                <div key={action.actionId} className="flex items-center justify-between border-b pb-4 last:border-0">
                   <div>
-                    <p className="font-medium">{claim.type}</p>
-                    <p className="text-sm text-muted-foreground">{claim.timestamp}</p>
+                    <p className="font-medium">Compensation - {action.actionType}</p>
+                    <p className="text-sm text-muted-foreground">{formatTimestamp(action.createdAt)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">{claim.amount}</p>
-                    <Badge variant="outline">{claim.status}</Badge>
+                    <p className="font-medium">5.0 FLOW</p>
+                    <Badge variant="outline">Compensated</Badge>
                   </div>
                 </div>
               ))}
+              {compensations.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">No compensations yet</p>
+              )}
             </div>
           </CardContent>
         </Card>

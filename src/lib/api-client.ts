@@ -28,3 +28,10 @@ export const metricsApi = {
   getProtection: () => apiClient.get('/metrics/protection'),
   getVault: () => apiClient.get('/metrics/vault'),
 };
+
+export const transactionApi = {
+  execute: (user: string, actionType: string, amount: number, recipient?: string, retryLimit?: number, txHash?: string, status?: string) => 
+    apiClient.post('/transactions/execute', { user, actionType, amount, recipient, retryLimit, txHash, status }),
+  getActionStatus: (actionId: string) => apiClient.get(`/transactions/action/${actionId}`),
+  getUserActions: (address: string) => apiClient.get(`/transactions/user/${address}`),
+};
