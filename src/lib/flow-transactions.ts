@@ -62,8 +62,9 @@ export const executeInsuredAction = async (
     return await executeTransfer(recipient, amount);
   }
   
+  const contractAddress = process.env.NEXT_PUBLIC_INSURED_ACTION_ADDRESS || '0x8401ed4fc6788c8a';
   const transactionCode = `
-    import InsuredAction from 0x8401ed4fc6788c8a
+    import InsuredAction from ${contractAddress}
     
     transaction(
       targetAction: String,
@@ -120,8 +121,9 @@ export const executeInsuredAction = async (
 };
 
 export const stakeTokens = async (amount: number) => {
+  const contractAddress = process.env.NEXT_PUBLIC_FROTH_REWARDS_ADDRESS || '0x8401ed4fc6788c8a';
   const transactionCode = `
-    import FrothRewards from 0x8401ed4fc6788c8a
+    import FrothRewards from ${contractAddress}
     
     transaction(amount: UFix64) {
       let stakerRef: &FrothRewards.FrothStaker
@@ -151,8 +153,9 @@ export const stakeTokens = async (amount: number) => {
 };
 
 export const unstakeTokens = async (amount: number) => {
+  const contractAddress = process.env.NEXT_PUBLIC_FROTH_REWARDS_ADDRESS || '0x8401ed4fc6788c8a';
   const transactionCode = `
-    import FrothRewards from 0x8401ed4fc6788c8a
+    import FrothRewards from ${contractAddress}
     
     transaction(amount: UFix64) {
       let stakerRef: &FrothRewards.FrothStaker

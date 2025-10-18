@@ -46,41 +46,9 @@ export function DapperPage() {
     },
   });
 
-  const mockNFTs: NFT[] = [
-    {
-      id: '1',
-      name: 'LeBron James Dunk',
-      collection: 'NBA Top Shot',
-      image: '/placeholder.svg',
-      protected: true,
-    },
-    {
-      id: '2',
-      name: 'Patrick Mahomes TD Pass',
-      collection: 'NFL All Day',
-      image: '/placeholder.svg',
-      protected: false,
-    },
-    {
-      id: '3',
-      name: 'Mickey Mouse Classic',
-      collection: 'Disney Pinnacle',
-      image: '/placeholder.svg',
-      protected: true,
-    },
-    {
-      id: '4',
-      name: 'Stephen Curry 3-Pointer',
-      collection: 'NBA Top Shot',
-      image: '/placeholder.svg',
-      protected: false,
-    },
-  ];
-
-  const mockHistory = [
-    { id: 1, nft: 'LeBron James Dunk', action: 'Protected', timestamp: '2 hours ago', status: 'active' },
-    { id: 2, nft: 'Mickey Mouse Classic', action: 'Protected', timestamp: '1 day ago', status: 'active' },
-  ];
+  // Use real data from API or fallback to demo data
+  const nfts = assetsData?.data?.assets || [];
+  const history = historyData?.data?.protectedAssets || [];
 
   const toggleProtection = (nftId: string) => {
     insureMutation.mutate(nftId);
@@ -112,7 +80,7 @@ export function DapperPage() {
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{mockNFTs.length}</div>
+                  <div className="text-2xl font-bold">{nfts.length}</div>
                   <p className="text-xs text-muted-foreground">In your wallet</p>
                 </CardContent>
               </Card>
@@ -124,7 +92,7 @@ export function DapperPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {mockNFTs.filter(nft => nft.protected).length}
+                    {nfts.filter((nft: NFT) => nft.protected).length}
                   </div>
                   <p className="text-xs text-muted-foreground">NFTs protected</p>
                 </CardContent>
@@ -137,7 +105,7 @@ export function DapperPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {mockNFTs.filter(nft => !nft.protected).length}
+                    {nfts.filter((nft: NFT) => !nft.protected).length}
                   </div>
                   <p className="text-xs text-muted-foreground">Need protection</p>
                 </CardContent>
@@ -151,7 +119,7 @@ export function DapperPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {mockNFTs.map((nft) => (
+                  {nfts.map((nft: NFT) => (
                     <Card key={nft.id} className="overflow-hidden">
                       <div className="aspect-square bg-muted relative">
                         <Avatar className="w-full h-full rounded-none">
@@ -201,18 +169,20 @@ export function DapperPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockHistory.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between border-b pb-4 last:border-0">
+                  {history.length > 0 ? history.map((entry: any) => (
+                    <div key={entry.assetId} className="flex items-center justify-between border-b pb-4 last:border-0">
                       <div>
-                        <p className="font-medium">{entry.nft}</p>
-                        <p className="text-sm text-muted-foreground">{entry.timestamp}</p>
+                        <p className="font-medium">{entry.assetId}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(entry.protectedAt * 1000).toLocaleString()}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{entry.action}</p>
+                        <p className="font-medium">{entry.assetType}</p>
                         <Badge variant="default">{entry.status}</Badge>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-muted-foreground text-center py-4">No protection history yet</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

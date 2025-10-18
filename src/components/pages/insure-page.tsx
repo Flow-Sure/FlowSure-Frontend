@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRightLeft, Coins, Send, Shield, Percent, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowRightLeft, Coins, Send, Shield, Percent, Loader2, AlertTriangle } from 'lucide-react';
 import { useWalletStore } from '@/store/wallet-store';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -187,89 +188,247 @@ export function InsurePage() {
 
               {actionType === 'mint' && (
                 <>
+                  {/* Collection Selection Card */}
                   <div className="space-y-2">
-                    <Label htmlFor="collection">NFT Collection</Label>
+                    <Label className="text-xs text-muted-foreground">Select Collection</Label>
                     <Select defaultValue="topshot">
-                      <SelectTrigger id="collection">
+                      <SelectTrigger className="h-auto p-4 border-2">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="topshot">NBA Top Shot</SelectItem>
-                        <SelectItem value="allday">NFL All Day</SelectItem>
-                        <SelectItem value="disney">Disney Pinnacle</SelectItem>
+                        <SelectItem value="topshot">
+                          <div className="flex items-center gap-3 py-2">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-bold">
+                              🏀
+                            </div>
+                            <div className="text-left">
+                              <div className="font-semibold">NBA Top Shot</div>
+                              <div className="text-xs text-muted-foreground">Official NBA Moments</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="allday">
+                          <div className="flex items-center gap-3 py-2">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold">
+                              🏈
+                            </div>
+                            <div className="text-left">
+                              <div className="font-semibold">NFL All Day</div>
+                              <div className="text-xs text-muted-foreground">Official NFL Moments</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="disney">
+                          <div className="flex items-center gap-3 py-2">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-bold">
+                              ✨
+                            </div>
+                            <div className="text-left">
+                              <div className="font-semibold">Disney Pinnacle</div>
+                              <div className="text-xs text-muted-foreground">Disney Digital Collectibles</div>
+                            </div>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Mint Price (FLOW)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="0.00"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                    />
+                  {/* Mint Details Card */}
+                  <div className="border rounded-xl p-4 bg-muted/50 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Mint Price per NFT</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="number"
+                          placeholder="0.0"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          className="text-2xl font-semibold h-auto py-2 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border">
+                          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">F</div>
+                          <span className="font-medium">FLOW</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-xs text-muted-foreground">Quantity</Label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const qty = parseInt((document.getElementById('quantity') as HTMLInputElement)?.value || '1');
+                              if (qty > 1) (document.getElementById('quantity') as HTMLInputElement).value = (qty - 1).toString();
+                            }}
+                          >
+                            -
+                          </Button>
+                          <Input
+                            id="quantity"
+                            type="number"
+                            defaultValue="1"
+                            min="1"
+                            max="10"
+                            className="w-16 text-center h-8"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const qty = parseInt((document.getElementById('quantity') as HTMLInputElement)?.value || '1');
+                              if (qty < 10) (document.getElementById('quantity') as HTMLInputElement).value = (qty + 1).toString();
+                            }}
+                          >
+                            +
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      placeholder="1"
-                      defaultValue="1"
-                      min="1"
-                    />
-                  </div>
+                  {/* Total Cost */}
+                  {amount && parseFloat(amount) > 0 && (
+                    <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Total Cost</span>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{parseFloat(amount).toFixed(2)} FLOW</div>
+                          <div className="text-xs text-muted-foreground">≈ ${(parseFloat(amount) * 2.5).toFixed(2)} USD (simulated rate)</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
               {actionType === 'swap' && (
                 <>
+                  {/* Demo Disclaimer */}
+                  <Alert variant="warning" className="mb-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Demo/Prototype Notice:</strong> This swap feature uses simulated exchange rates for demonstration purposes only. 
+                      The rate of 1 FLOW = 2.5 USDC is hardcoded and does not reflect real market prices. 
+                      Do not use this for actual financial transactions.
+                    </AlertDescription>
+                  </Alert>
+
+                  {/* From Token Card */}
                   <div className="space-y-2">
-                    <Label htmlFor="fromToken">From Token</Label>
-                    <Select defaultValue="flow">
-                      <SelectTrigger id="fromToken">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="flow">FLOW</SelectItem>
-                        <SelectItem value="usdc">USDC</SelectItem>
-                        <SelectItem value="fusd">FUSD</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs text-muted-foreground">You Pay</Label>
+                    <div className="relative border rounded-xl p-4 bg-muted/50 hover:bg-muted transition-colors">
+                      <div className="flex items-center justify-between gap-4">
+                        <Input
+                          type="number"
+                          placeholder="0.0"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          className="border-0 bg-transparent text-2xl font-semibold p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                        <Select defaultValue="flow">
+                          <SelectTrigger className="w-[140px] border-0 bg-background hover:bg-accent">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="flow">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">F</div>
+                                FLOW
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="usdc">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">U</div>
+                                USDC
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="fusd">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold">F</div>
+                                FUSD
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Balance: 100.00 FLOW
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="toToken">To Token</Label>
-                    <Select defaultValue="usdc">
-                      <SelectTrigger id="toToken">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="usdc">USDC</SelectItem>
-                        <SelectItem value="fusd">FUSD</SelectItem>
-                        <SelectItem value="flow">FLOW</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  {/* Swap Arrow */}
+                  <div className="flex justify-center -my-2 relative z-10">
+                    <div className="p-2 rounded-xl border bg-background shadow-sm hover:bg-accent transition-colors cursor-pointer">
+                      <ArrowRightLeft className="h-4 w-4" />
+                    </div>
                   </div>
 
+                  {/* To Token Card */}
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount to Swap</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="0.00"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                    />
+                    <Label className="text-xs text-muted-foreground">You Receive</Label>
+                    <div className="relative border rounded-xl p-4 bg-muted/50">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="text-2xl font-semibold text-muted-foreground">
+                          {amount ? (parseFloat(amount) * 2.5).toFixed(2) : '0.0'}
+                        </div>
+                        <Select defaultValue="usdc">
+                          <SelectTrigger className="w-[140px] border-0 bg-background hover:bg-accent">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="usdc">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">U</div>
+                                USDC
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="fusd">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold">F</div>
+                                FUSD
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="flow">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">F</div>
+                                FLOW
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Balance: 250.00 USDC
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="slippage">Slippage Tolerance (%)</Label>
+                  {/* Swap Details */}
+                  {amount && parseFloat(amount) > 0 && (
+                    <div className="rounded-lg border p-3 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Rate (Simulated)</span>
+                        <span className="font-medium">1 FLOW = 2.5 USDC</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Price Impact (Demo)</span>
+                        <span className="text-green-600 font-medium">&lt;0.01%</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-sm">
+                    <Label htmlFor="slippage" className="text-muted-foreground">Slippage Tolerance</Label>
                     <Select defaultValue="0.5">
-                      <SelectTrigger id="slippage">
+                      <SelectTrigger id="slippage" className="w-[100px] h-8">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
