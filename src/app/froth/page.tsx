@@ -1,5 +1,5 @@
-import { FrothPage } from '@/components/pages/froth-page';
+import { AutoCompoundPage } from '@/components/pages/auto-compound-page';
 
 export default function Froth() {
-  return <FrothPage />;
+  return <AutoCompoundPage />;
 }

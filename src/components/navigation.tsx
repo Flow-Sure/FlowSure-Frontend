@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Coins, Wallet, FileCheck } from 'lucide-react';
+import { Shield, Coins, Wallet, FileCheck, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWalletStore } from '@/store/wallet-store';
 import { fcl } from '@/lib/flow-config';
@@ -10,9 +10,9 @@ import { useEffect } from 'react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Shield },
-  { href: '/froth', label: 'FROTH Staking', icon: Coins },
-  { href: '/dapper', label: 'Dapper Protection', icon: Wallet },
-  { href: '/insure', label: 'Insure Transaction', icon: FileCheck },
+  { href: '/schedule', label: 'Schedule Transfer', icon: Calendar },
+  { href: '/insure', label: 'Insure Now', icon: FileCheck },
+  { href: '/staking', label: 'Staking', icon: Coins },
 ];
 
 export function Navigation() {

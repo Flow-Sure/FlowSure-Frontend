@@ -8,36 +8,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowRightLeft, Coins, Send, Shield, Percent, Loader2, AlertTriangle } from 'lucide-react';
+import { Coins, Send, Shield, Percent, Loader2 } from 'lucide-react';
 import { useWalletStore } from '@/store/wallet-store';
 import { toast } from 'sonner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { transactionApi, frothApi } from '@/lib/api-client';
+import { transactionApi } from '@/lib/api-client';
 import { executeInsuredAction } from '@/lib/flow-transactions';
+import { getStakingSummary } from '@/lib/staking-transactions';
 import { TransactionHistory } from '@/components/transaction-history';
 
-type ActionType = 'swap' | 'mint' | 'transfer';
+type ActionType = 'mint' | 'transfer';
 
 export function InsurePage() {
   const { user } = useWalletStore();
   const queryClient = useQueryClient();
-  const [actionType, setActionType] = useState<ActionType>('swap');
+  const [actionType, setActionType] = useState<ActionType>('transfer');
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [retries, setRetries] = useState('3');
 
-  const { data: stakerData } = useQuery({
-    queryKey: ['staker', user?.addr],
-    queryFn: () => frothApi.getStaker(user.addr!),
+  const { data: stakingData } = useQuery({
+    queryKey: ['staking-summary', user?.addr],
+    queryFn: () => getStakingSummary(user.addr!),
     enabled: !!user?.addr,
   });
 
-  const frothStaked = stakerData?.data?.stakedAmount || 0;
+  const flowStaked = stakingData?.stakedAmount ? parseFloat(stakingData.stakedAmount) : 0;
+  const discountDecimal = stakingData?.discount ? parseFloat(stakingData.discount) : 0;
+  const discountPercent = discountDecimal * 100;
 
   const baseFee = parseFloat(amount) * 0.02 || 0;
-  const discount = Math.min(frothStaked / 100, 20);
-  const finalFee = baseFee * (1 - discount / 100);
+  const finalFee = baseFee * (1 - discountDecimal);
   const savings = baseFee - finalFee;
 
   const executeMutation = useMutation({
@@ -85,7 +86,6 @@ export function InsurePage() {
   };
 
   const actionIcons = {
-    swap: ArrowRightLeft,
     mint: Coins,
     transfer: Send,
   };
@@ -100,18 +100,7 @@ export function InsurePage() {
           <p className="text-muted-foreground">Wrap your transaction with automatic retry protection</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card 
-            className={`cursor-pointer transition-all ${actionType === 'swap' ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setActionType('swap')}
-          >
-            <CardHeader className="text-center">
-              <ArrowRightLeft className="h-8 w-8 mx-auto mb-2" />
-              <CardTitle>Swap</CardTitle>
-              <CardDescription>Token exchanges</CardDescription>
-            </CardHeader>
-          </Card>
-
+        <div className="grid gap-6 md:grid-cols-2">
           <Card 
             className={`cursor-pointer transition-all ${actionType === 'mint' ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setActionType('mint')}
@@ -152,7 +141,6 @@ export function InsurePage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="swap">Swap</SelectItem>
                     <SelectItem value="mint">Mint</SelectItem>
                     <SelectItem value="transfer">Transfer</SelectItem>
                   </SelectContent>
@@ -308,139 +296,6 @@ export function InsurePage() {
                 </>
               )}
 
-              {actionType === 'swap' && (
-                <>
-                  {/* Demo Disclaimer */}
-                  <Alert variant="warning" className="mb-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Demo/Prototype Notice:</strong> This swap feature uses simulated exchange rates for demonstration purposes only. 
-                      The rate of 1 FLOW = 2.5 USDC is hardcoded and does not reflect real market prices. 
-                      Do not use this for actual financial transactions.
-                    </AlertDescription>
-                  </Alert>
-
-                  {/* From Token Card */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">You Pay</Label>
-                    <div className="relative border rounded-xl p-4 bg-muted/50 hover:bg-muted transition-colors">
-                      <div className="flex items-center justify-between gap-4">
-                        <Input
-                          type="number"
-                          placeholder="0.0"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          className="border-0 bg-transparent text-2xl font-semibold p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                        />
-                        <Select defaultValue="flow">
-                          <SelectTrigger className="w-[140px] border-0 bg-background hover:bg-accent">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="flow">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">F</div>
-                                FLOW
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="usdc">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">U</div>
-                                USDC
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="fusd">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold">F</div>
-                                FUSD
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Balance: 100.00 FLOW
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Swap Arrow */}
-                  <div className="flex justify-center -my-2 relative z-10">
-                    <div className="p-2 rounded-xl border bg-background shadow-sm hover:bg-accent transition-colors cursor-pointer">
-                      <ArrowRightLeft className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {/* To Token Card */}
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">You Receive</Label>
-                    <div className="relative border rounded-xl p-4 bg-muted/50">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-2xl font-semibold text-muted-foreground">
-                          {amount ? (parseFloat(amount) * 2.5).toFixed(2) : '0.0'}
-                        </div>
-                        <Select defaultValue="usdc">
-                          <SelectTrigger className="w-[140px] border-0 bg-background hover:bg-accent">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="usdc">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">U</div>
-                                USDC
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="fusd">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold">F</div>
-                                FUSD
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="flow">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">F</div>
-                                FLOW
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Balance: 250.00 USDC
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Swap Details */}
-                  {amount && parseFloat(amount) > 0 && (
-                    <div className="rounded-lg border p-3 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Rate (Simulated)</span>
-                        <span className="font-medium">1 FLOW = 2.5 USDC</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Price Impact (Demo)</span>
-                        <span className="text-green-600 font-medium">&lt;0.01%</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm">
-                    <Label htmlFor="slippage" className="text-muted-foreground">Slippage Tolerance</Label>
-                    <Select defaultValue="0.5">
-                      <SelectTrigger id="slippage" className="w-[100px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0.1">0.1%</SelectItem>
-                        <SelectItem value="0.5">0.5%</SelectItem>
-                        <SelectItem value="1">1%</SelectItem>
-                        <SelectItem value="3">3%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
 
               <div className="space-y-2">
                 <Label htmlFor="retries">Max Retries</Label>
@@ -465,7 +320,7 @@ export function InsurePage() {
                 <Shield className="h-5 w-5" />
                 Fee Calculator
               </CardTitle>
-              <CardDescription>Insurance cost with FROTH discount</CardDescription>
+              <CardDescription>Insurance cost with FLOW staking discount</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
@@ -477,9 +332,9 @@ export function InsurePage() {
                 <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
                   <div className="flex items-center gap-2">
                     <Percent className="h-4 w-4" />
-                    <span className="text-sm font-medium">FROTH Discount</span>
+                    <span className="text-sm font-medium">FLOW Staking Discount</span>
                   </div>
-                  <Badge variant="default">{discount.toFixed(1)}%</Badge>
+                  <Badge variant="default">{discountPercent.toFixed(1)}%</Badge>
                 </div>
 
                 <div className="flex justify-between items-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
@@ -499,8 +354,8 @@ export function InsurePage() {
 
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Your FROTH Staked</span>
-                  <span className="font-medium">{frothStaked} FROTH</span>
+                  <span className="text-muted-foreground">Your FLOW Staked</span>
+                  <span className="font-medium">{flowStaked.toFixed(2)} FLOW</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Max Retries</span>
