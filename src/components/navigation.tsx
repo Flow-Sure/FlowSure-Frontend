@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Shield, Coins, Wallet, FileCheck, Calendar } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useWalletStore } from '@/store/wallet-store';
 import { fcl } from '@/lib/flow-config';
@@ -42,9 +43,9 @@ export function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">FlowSure</span>
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/flowsure.png" alt="FlowSure" width={40} height={40} className="h-10 w-10" />
+              <span className="text-xl font-bold">flowSure</span>
             </Link>
             <div className="hidden md:flex gap-1">
               {navItems.map((item) => {

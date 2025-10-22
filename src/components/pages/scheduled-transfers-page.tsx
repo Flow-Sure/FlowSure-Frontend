@@ -51,6 +51,31 @@ export function ScheduledTransfersPage() {
 
   const transfers = transfersData?.data || [];
   const upcoming = upcomingData?.data || [];
+  // Group upcoming transfers so multi-recipient schedules appear as a single event
+  const groupedUpcoming = Object.values(
+    (upcoming || []).reduce((acc, t) => {
+      const key = `${t.title}|${new Date(t.scheduledDate).toISOString()}`;
+      if (!acc[key]) acc[key] = { items: [] as ScheduledTransfer[], rep: t, status: t.status };
+      acc[key].items.push(t);
+      const statuses = acc[key].items.map(i => i.status);
+      const allCompleted = statuses.every(s => s === 'completed');
+      const allFailed = statuses.every(s => s === 'failed');
+      const hasExecuting = statuses.includes('executing');
+      const hasScheduled = statuses.includes('scheduled');
+      acc[key].status = allCompleted
+        ? 'completed'
+        : allFailed
+        ? 'failed'
+        : hasExecuting
+        ? 'executing'
+        : hasScheduled
+        ? 'scheduled'
+        : statuses.includes('completed')
+        ? 'completed'
+        : 'scheduled';
+      return acc;
+    }, {} as Record<string, { items: ScheduledTransfer[]; rep: ScheduledTransfer; status: ScheduledTransfer['status'] }>)
+  );
 
   const stats = {
     total: transfers.length,
@@ -58,6 +83,39 @@ export function ScheduledTransfersPage() {
     completed: transfers.filter(t => t.status === 'completed').length,
     failed: transfers.filter(t => t.status === 'failed').length,
   };
+
+  // Selected group for dialog aggregation (same title + exact scheduledDate)
+  const selectedGroupItems = selectedTransfer
+    ? transfers.filter(t =>
+        t.title === selectedTransfer.title &&
+        new Date(t.scheduledDate).toISOString() === new Date(selectedTransfer.scheduledDate).toISOString()
+      )
+    : [];
+
+  const groupCount = selectedGroupItems.length;
+  const aggregatedRecipients = selectedGroupItems.map(t => t.recipient).filter(Boolean) as string[];
+  const aggregatedTxIds = selectedGroupItems.map(t => t.transactionId).filter(Boolean) as string[];
+  const totalGroupAmount = selectedGroupItems.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const aggregatedStatus: ScheduledTransfer['status'] = (() => {
+    const baseForStatus = groupCount > 0 ? selectedGroupItems : (selectedTransfer ? [selectedTransfer] : []);
+    const statuses = baseForStatus.map(t => t.status);
+    if (statuses.length === 0) return 'scheduled';
+    const allCompleted = statuses.every(s => s === 'completed');
+    const allFailed = statuses.every(s => s === 'failed');
+    const hasExecuting = statuses.includes('executing');
+    const hasScheduled = statuses.includes('scheduled');
+    return allCompleted
+      ? 'completed'
+      : allFailed
+      ? 'failed'
+      : hasExecuting
+      ? 'executing'
+      : hasScheduled
+      ? 'scheduled'
+      : statuses.includes('completed')
+      ? 'completed'
+      : 'scheduled';
+  })();
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
@@ -211,40 +269,40 @@ export function ScheduledTransfersPage() {
                     <CardDescription>Next 7 days</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {upcoming.length === 0 ? (
+                    {groupedUpcoming.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8 text-sm">
                         No upcoming transfers
                       </p>
                     ) : (
                       <div className="space-y-3">
-                        {upcoming.map(transfer => (
+                        {groupedUpcoming.map(group => (
                           <div
-                            key={transfer._id || transfer.id}
+                            key={(group.rep._id || group.rep.id) as string}
                             className="p-3 border rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                            onClick={() => handleTransferClick(transfer)}
+                            onClick={() => handleTransferClick(group.rep)}
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1">
-                                <p className="font-medium text-sm truncate">{transfer.title}</p>
-                                {transfer.isRecurring && (
+                                <p className="font-medium text-sm truncate">{group.rep.title}{group.items.length > 1 ? ` × ${group.items.length}` : ''}</p>
+                                {group.rep.isRecurring && (
                                   <Badge variant="outline" className="mt-1">
                                     <Repeat className="h-3 w-3 mr-1" />
-                                    {transfer.recurringFrequency}
+                                    {group.rep.recurringFrequency}
                                   </Badge>
                                 )}
                               </div>
-                              {getStatusBadge(transfer.status)}
+                              {getStatusBadge(group.status)}
                             </div>
                             <div className="space-y-1 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {formatDateTime(transfer.scheduledDate)}
+                                {formatDateTime(group.rep.scheduledDate)}
                               </div>
                               <div className="flex items-center gap-1">
                                 <Send className="h-3 w-3" />
-                                {transfer.amount} FLOW
-                                {transfer.recipients && transfer.recipients.length > 0 && (
-                                  <span>× {transfer.recipients.length}</span>
+                                {group.rep.amount} FLOW
+                                {group.items.length > 1 && (
+                                  <span>× {group.items.length}</span>
                                 )}
                               </div>
                             </div>
@@ -280,7 +338,7 @@ export function ScheduledTransfersPage() {
       </Dialog>
 
       <Dialog open={!!selectedTransfer} onOpenChange={() => setSelectedTransfer(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{selectedTransfer?.title}</DialogTitle>
             <DialogDescription>Transfer Details</DialogDescription>
@@ -289,7 +347,7 @@ export function ScheduledTransfersPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>
-                {getStatusBadge(selectedTransfer.status)}
+                {getStatusBadge(aggregatedStatus)}
               </div>
 
               {selectedTransfer.description && (
@@ -299,10 +357,15 @@ export function ScheduledTransfersPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Amount</p>
-                  <p className="font-medium">{selectedTransfer.amount} FLOW</p>
+                  <p className="font-medium">
+                    {groupCount > 1 ? `${totalGroupAmount} FLOW (total)` : `${selectedTransfer.amount} FLOW`}
+                  </p>
+                  {groupCount > 1 && (
+                    <p className="text-xs text-muted-foreground">Per transfer: {selectedTransfer.amount} FLOW × {groupCount}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Max Retries</p>
@@ -310,7 +373,7 @@ export function ScheduledTransfersPage() {
                 </div>
               </div>
 
-              {selectedTransfer.recipient && (
+              {groupCount <= 1 && selectedTransfer.recipient && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Recipient</p>
                   <p className="font-mono text-sm break-all">{selectedTransfer.recipient}</p>
@@ -328,6 +391,17 @@ export function ScheduledTransfersPage() {
                         <p className="font-medium">{r.name || 'Unnamed'}</p>
                         <p className="font-mono text-xs text-muted-foreground break-all">{r.address}</p>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupCount > 1 && aggregatedRecipients.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Recipients ({aggregatedRecipients.length})</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {aggregatedRecipients.map((addr, idx) => (
+                      <p key={idx} className="font-mono text-xs text-muted-foreground break-all">{addr}</p>
                     ))}
                   </div>
                 </div>
@@ -362,18 +436,40 @@ export function ScheduledTransfersPage() {
                 </div>
               )}
 
-              {selectedTransfer.transactionId && (
+              {groupCount <= 1 && selectedTransfer.transactionId && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Transaction ID</p>
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-sm truncate">{selectedTransfer.transactionId}</p>
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <p className="font-mono text-sm truncate w-0 flex-1">{selectedTransfer.transactionId}</p>
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="shrink-0"
                       onClick={() => window.open(`https://testnet.flowscan.io/tx/${selectedTransfer.transactionId}`, '_blank')}
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>
+                  </div>
+                </div>
+              )}
+
+              {groupCount > 1 && aggregatedTxIds.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Transaction IDs ({aggregatedTxIds.length})</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {aggregatedTxIds.map((tx, idx) => (
+                      <div key={idx} className="flex items-center gap-2 overflow-hidden">
+                        <p className="font-mono text-sm truncate w-0 flex-1">{tx}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => window.open(`https://testnet.flowscan.io/tx/${tx}`, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

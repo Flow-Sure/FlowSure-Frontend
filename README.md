@@ -37,13 +37,28 @@ npm install
 cp .env.local.example .env.local
 ```
 
-Edit `.env.local` with your configuration:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
-NEXT_PUBLIC_FLOW_ACCESS_NODE=https://rest-testnet.onflow.org
-NEXT_PUBLIC_FROTH_REWARDS_ADDRESS=0x8401ed4fc6788c8a
-NEXT_PUBLIC_DAPPER_PROTECTION_ADDRESS=0x8401ed4fc6788c8a
-```
+  Edit `.env.local` with your configuration:
+  ```env
+  NEXT_PUBLIC_API_URL=http://localhost:3000/api
+  NEXT_PUBLIC_FLOW_ACCESS_NODE=https://rest-testnet.onflow.org
+  # WalletConnect (optional for mobile wallets)
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
+
+  # Contract addresses (Testnet)
+  NEXT_PUBLIC_FROTH_REWARDS_ADDRESS=0x8401ed4fc6788c8a
+  NEXT_PUBLIC_FROTH_REWARDS_V2_ADDRESS=0x8401ed4fc6788c8a
+  NEXT_PUBLIC_AUTO_COMPOUND_ADDRESS=0x8401ed4fc6788c8a
+  NEXT_PUBLIC_SCHEDULER_ADDRESS=0x8401ed4fc6788c8a
+  NEXT_PUBLIC_DAPPER_PROTECTION_ADDRESS=0x8401ed4fc6788c8a
+  ```
+
+#### Deployed Contracts (Testnet)
+- **InsuranceVault**: `0x8401ed4fc6788c8a`
+- **Scheduler**: `0x8401ed4fc6788c8a`
+- **FrothRewardsV2**: `0x8401ed4fc6788c8a`
+- **DapperAssetProtection**: `0x8401ed4fc6788c8a`
+- **InsuredAction**: `0x8401ed4fc6788c8a`
+- **ScheduledTransfer**: `0xfe1ad3a05230e532`
 
 3. Run the development server:
 ```bash

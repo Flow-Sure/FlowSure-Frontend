@@ -16,7 +16,8 @@ import { scheduledTransfersApi, CreateScheduledTransferRequest, Recipient } from
 import { recipientListsApi } from '@/lib/api/recipient-lists';
 import { useWalletStore } from '@/store/wallet-store';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { authorizeScheduledTransfers, checkAuthorization } from '@/lib/scheduled-transfer-auth';
+import { initializeScheduledTransferHandler, checkHandlerInitialized, scheduleTransfer } from '@/lib/scheduled-transfer-auth';
+import { removeOldHandler } from '@/lib/remove-old-handler';
 
 interface EnhancedScheduleTransferFormProps {
   onSuccess?: () => void;
@@ -110,10 +111,10 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
       if (user?.addr) {
         setIsCheckingAuth(true);
         try {
-          const authorized = await checkAuthorization(user.addr);
-          setIsAuthorized(authorized);
+          const initialized = await checkHandlerInitialized(user.addr);
+          setIsAuthorized(initialized);
         } catch (error) {
-          console.error('Failed to check authorization:', error);
+          console.error('Failed to check handler initialization:', error);
           setIsAuthorized(false);
         } finally {
           setIsCheckingAuth(false);
@@ -155,6 +156,27 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
     setMultipleRecipients(updated);
   };
 
+  const handleRemoveOldHandler = async () => {
+    if (!user?.addr) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    const loadingToast = toast.loading('Removing old handler...');
+
+    try {
+      const txId = await removeOldHandler();
+      toast.dismiss(loadingToast);
+      toast.success(`Old handler removed! TX: ${txId.slice(0, 8)}...`);
+      toast.info('Now click "Initialize Handler" to create a new one');
+      setIsAuthorized(false);
+    } catch (error: any) {
+      console.error('Failed to remove old handler:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to remove old handler');
+    }
+  };
+
   const handleAuthorize = async () => {
     if (!user?.addr) {
       toast.error('Please connect your wallet');
@@ -162,24 +184,24 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
     }
 
     setIsAuthorizing(true);
+    const loadingToast = toast.loading('Initializing scheduled transfer handler...');
+
     try {
-      const maxAmount = 10000; // 10,000 FLOW max per transfer
-      const expiryDays = 365; // 1 year
-      
-      toast.loading('Please sign the authorization transaction...');
-      await authorizeScheduledTransfers(maxAmount, expiryDays);
-      
+      const txId = await initializeScheduledTransferHandler();
+
+      toast.dismiss(loadingToast);
       setIsAuthorized(true);
-      toast.success('Authorization successful! You can now schedule transfers.');
+      toast.success(`Handler initialized! TX: ${txId.slice(0, 8)}...`);
     } catch (error: any) {
-      console.error('Authorization failed:', error);
-      toast.error(error.message || 'Failed to authorize scheduled transfers');
+      console.error('Handler initialization failed:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to initialize handler');
     } finally {
       setIsAuthorizing(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user?.addr) {
@@ -188,7 +210,7 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
     }
 
     if (!isAuthorized) {
-      toast.error('Please authorize scheduled transfers first');
+      toast.error('Please initialize scheduled transfer handler first');
       return;
     }
 
@@ -203,46 +225,98 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
       return;
     }
 
-    let requestData: CreateScheduledTransferRequest = {
-      userAddress: user.addr,
-      title,
-      description,
-      amount: parseFloat(amount),
-      amountPerRecipient,
-      scheduledDate: scheduledDateTime.toISOString(),
-      retryLimit: parseInt(retryLimit),
-      isRecurring,
-    };
-
-    if (isRecurring) {
-      requestData.recurringFrequency = recurringFrequency;
-      if (recurringEndDate) {
-        requestData.recurringEndDate = new Date(`${recurringEndDate}T23:59:59`).toISOString();
-      }
-    }
-
+    // Build recipients based on mode
+    let targetRecipients: string[] = [];
     if (recipientMode === 'single') {
       if (!singleRecipient) {
         toast.error('Please enter a recipient address');
         return;
       }
-      requestData.recipient = singleRecipient;
+      targetRecipients = [singleRecipient];
     } else if (recipientMode === 'multiple') {
-      const validRecipients = multipleRecipients.filter(r => r.address.trim());
-      if (validRecipients.length === 0) {
+      const valid = multipleRecipients.filter(r => r.address.trim()).map(r => r.address.trim());
+      if (valid.length === 0) {
         toast.error('Please add at least one recipient');
         return;
       }
-      requestData.recipients = validRecipients;
+      targetRecipients = valid;
     } else if (recipientMode === 'list') {
       if (!selectedListId) {
         toast.error('Please select a recipient list');
         return;
       }
-      requestData.recipientListId = selectedListId;
+      const list = lists.find(l => (l._id || l.id) === selectedListId);
+      if (!list) {
+        toast.error('Recipient list not found');
+        return;
+      }
+      targetRecipients = (list.recipients || []).map((r: any) => r.address).filter((a: string) => a && a.trim());
+      if (targetRecipients.length === 0) {
+        toast.error('Selected list has no recipients');
+        return;
+      }
     }
 
-    createMutation.mutate(requestData);
+    if (isRecurring) {
+      toast.error('Recurring transfers are not yet supported with Flow scheduler. Please disable recurring option.');
+      return;
+    }
+
+    const loadingToast = toast.loading(`Scheduling ${targetRecipients.length} transfer${targetRecipients.length > 1 ? 's' : ''} on Flow blockchain...`);
+
+    try {
+      // Calculate delay in seconds
+      const now = new Date();
+      const delayMs = scheduledDateTime.getTime() - now.getTime();
+      const delaySeconds = Math.floor(delayMs / 1000);
+
+      if (delaySeconds < 60) {
+        toast.dismiss(loadingToast);
+        toast.error('Scheduled time must be at least 60 seconds in the future');
+        return;
+      }
+
+      // Determine per-recipient amount
+      const amountValue = parseFloat(amount);
+      if (isNaN(amountValue) || amountValue <= 0) {
+        toast.dismiss(loadingToast);
+        toast.error('Invalid amount value');
+        return;
+      }
+      const perAmount = amountPerRecipient ? amountValue : amountValue / targetRecipients.length;
+
+      const txIds: string[] = [];
+      for (const recipientAddr of targetRecipients) {
+        const txId = await scheduleTransfer(recipientAddr, perAmount, delaySeconds);
+        txIds.push(txId);
+        try {
+          await scheduledTransfersApi.saveFlowScheduled({
+            userAddress: user.addr,
+            title,
+            description,
+            recipient: recipientAddr,
+            amount: perAmount,
+            scheduledDate: scheduledDateTime.toISOString(),
+            transactionId: txId
+          });
+        } catch (backendError) {
+          console.error('Failed to save to backend:', backendError);
+        }
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`${txIds.length} transfer${txIds.length > 1 ? 's' : ''} scheduled!`);
+      if (txIds.length === 1) {
+        toast.info('View your scheduled transaction on FlowScan');
+      }
+      
+      resetForm();
+      onSuccess?.();
+    } catch (error: any) {
+      console.error('Failed to schedule transfer:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Failed to schedule transfer');
+    }
   };
 
   const recipientCount = getRecipientCount();
@@ -266,23 +340,38 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
         {!isAuthorized && !isCheckingAuth && (
           <Alert className="mb-6">
             <Shield className="h-4 w-4" />
-            <AlertDescription className="flex items-center justify-between">
-              <div>
-                <p className="font-medium mb-1">Authorization Required</p>
-                <p className="text-sm text-muted-foreground">
-                  You need to authorize FlowSure to execute scheduled transfers on your behalf.
-                  This is a one-time setup that allows the backend to transfer FLOW tokens from your wallet
-                  at the scheduled time.
-                </p>
+            <AlertDescription>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="font-medium mb-1">Handler Initialization Required</p>
+                  <p className="text-sm text-muted-foreground">
+                    Initialize the scheduled transfer handler to use Flow's native transaction scheduler.
+                    This is a one-time setup that allows Flow blockchain to automatically execute your transfers
+                    at the scheduled time.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleAuthorize}
+                  disabled={isAuthorizing}
+                  className="ml-4"
+                >
+                  {isAuthorizing ? 'Initializing...' : 'Initialize Handler'}
+                </Button>
               </div>
-              <Button
-                type="button"
-                onClick={handleAuthorize}
-                disabled={isAuthorizing}
-                className="ml-4"
-              >
-                {isAuthorizing ? 'Authorizing...' : 'Authorize Now'}
-              </Button>
+              <div className="mt-2 pt-2 border-t">
+                <p className="text-xs text-muted-foreground mb-2">
+                  ⚠️ If you have an old handler from a previous contract, remove it first:
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRemoveOldHandler}
+                >
+                  Remove Old Handler
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -291,10 +380,25 @@ export function EnhancedScheduleTransferForm({ onSuccess, selectedDate }: Enhanc
           <Alert className="mb-6 border-green-500 bg-green-50">
             <Shield className="h-4 w-4 text-green-600" />
             <AlertDescription>
-              <p className="font-medium text-green-900">Authorized ✓</p>
-              <p className="text-sm text-green-700">
-                Your wallet is authorized for scheduled transfers. You can now schedule transfers up to 10,000 FLOW.
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-green-900">Handler Initialized ✓</p>
+                  <p className="text-sm text-green-700">
+                    Your handler is ready! Transfers will be executed automatically by Flow blockchain at the scheduled time.
+                    View scheduled transactions on <a href="https://testnet.flowscan.io/schedule" target="_blank" rel="noopener noreferrer" className="underline">FlowScan</a>.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAuthorize}
+                  disabled={isAuthorizing}
+                  className="ml-4 whitespace-nowrap"
+                >
+                  {isAuthorizing ? 'Reinitializing...' : 'Reinitialize Handler'}
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
         )}

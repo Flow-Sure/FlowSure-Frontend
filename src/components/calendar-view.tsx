@@ -146,7 +146,33 @@ export function CalendarView({ transfers, onDateClick, onTransferClick }: Calend
             }
 
             const dayTransfers = getTransfersForDate(day);
-            const hasTransfers = dayTransfers.length > 0;
+            // Group transfers by title and exact scheduledDate so multi-recipient schedules appear as one event
+            const grouped = Object.values(
+              dayTransfers.reduce((acc, t) => {
+                const key = `${t.title}|${new Date(t.scheduledDate).toISOString()}`;
+                if (!acc[key]) acc[key] = { items: [] as ScheduledTransfer[], rep: t, status: t.status };
+                acc[key].items.push(t);
+                // derive aggregated status
+                const statuses = acc[key].items.map(i => i.status);
+                const allCompleted = statuses.every(s => s === 'completed');
+                const allFailed = statuses.every(s => s === 'failed');
+                const hasExecuting = statuses.includes('executing');
+                const hasScheduled = statuses.includes('scheduled');
+                acc[key].status = allCompleted
+                  ? 'completed'
+                  : allFailed
+                  ? 'failed'
+                  : hasExecuting
+                  ? 'executing'
+                  : hasScheduled
+                  ? 'scheduled'
+                  : statuses.includes('completed')
+                  ? 'completed'
+                  : 'scheduled';
+                return acc;
+              }, {} as Record<string, { items: ScheduledTransfer[]; rep: ScheduledTransfer; status: ScheduledTransfer['status'] }>)
+            );
+            const hasTransfers = grouped.length > 0;
 
             return (
               <div
@@ -162,29 +188,29 @@ export function CalendarView({ transfers, onDateClick, onTransferClick }: Calend
                 <div className="flex flex-col h-full">
                   <div className="text-sm font-medium mb-1">{day}</div>
                   <div className="flex-1 space-y-1 overflow-hidden">
-                    {dayTransfers.slice(0, 3).map((transfer, index) => (
+                    {grouped.slice(0, 3).map((group, index) => (
                       <div
-                        key={transfer._id || transfer.id || `${day}-${index}`}
+                        key={(group.rep._id || group.rep.id || `${day}-${index}`) as string}
                         className={`
                           text-xs px-1 py-0.5 rounded truncate cursor-pointer
-                          ${getStatusColor(transfer.status)} text-white
+                          ${getStatusColor(group.status)} text-white
                           hover:opacity-80 transition-opacity
                         `}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onTransferClick?.(transfer);
+                          onTransferClick?.(group.rep);
                         }}
-                        title={transfer.title}
+                        title={group.rep.title}
                       >
                         <div className="flex items-center gap-1">
-                          {getStatusIcon(transfer.status)}
-                          <span className="truncate">{transfer.title}</span>
+                          {getStatusIcon(group.status)}
+                          <span className="truncate">{group.rep.title}{group.items.length > 1 ? ` × ${group.items.length}` : ''}</span>
                         </div>
                       </div>
                     ))}
-                    {dayTransfers.length > 3 && (
+                    {grouped.length > 3 && (
                       <div className="text-xs text-muted-foreground">
-                        +{dayTransfers.length - 3} more
+                        +{grouped.length - 3} more
                       </div>
                     )}
                   </div>

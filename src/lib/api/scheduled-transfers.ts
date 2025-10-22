@@ -64,7 +64,23 @@ export interface RecurringCostCalculation {
   estimatedOnly: boolean;
 }
 
+export interface FlowScheduledTransferRequest {
+  userAddress: string;
+  title: string;
+  description?: string;
+  recipient: string;
+  amount: number;
+  scheduledDate: string;
+  transactionId: string;
+}
+
 export const scheduledTransfersApi = {
+  // Save Flow-scheduled transfer for tracking
+  saveFlowScheduled: async (data: FlowScheduledTransferRequest): Promise<{ data: ScheduledTransfer }> => {
+    const response = await axios.post(`${API_BASE_URL}/scheduled-transfers/flow-scheduled`, data);
+    return response.data;
+  },
+
   // Create a new scheduled transfer
   create: async (data: CreateScheduledTransferRequest): Promise<{ data: ScheduledTransfer }> => {
     const response = await axios.post(`${API_BASE_URL}/scheduled-transfers`, data);

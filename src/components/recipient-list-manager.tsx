@@ -170,21 +170,23 @@ export function RecipientListManager() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="list-name">List Name *</Label>
+                <Label className='pb-4' htmlFor="list-name">List Name *</Label>
                 <Input
                   id="list-name"
                   placeholder="e.g., Backend Developers, Marketing Team"
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
+                  className="mb-4"
                 />
               </div>
               <div>
-                <Label htmlFor="list-description">Description</Label>
+                <Label className='pb-4' htmlFor="list-description">Description</Label>
                 <Textarea
                   id="list-description"
                   placeholder="Optional description"
                   value={newListDescription}
                   onChange={(e) => setNewListDescription(e.target.value)}
+                  className="mb-4"
                 />
               </div>
               <div>
@@ -327,6 +329,7 @@ export function RecipientListManager() {
                 id="edit-list-name"
                 value={newListName}
                 onChange={(e) => setNewListName(e.target.value)}
+                className="mb-4"
               />
             </div>
             <div>
@@ -335,6 +338,7 @@ export function RecipientListManager() {
                 id="edit-list-description"
                 value={newListDescription}
                 onChange={(e) => setNewListDescription(e.target.value)}
+                className="mb-4"
               />
             </div>
             <div>
