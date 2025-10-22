@@ -1,14 +1,14 @@
 # FlowSure Frontend
 
-A Next.js 14 dashboard for FlowSure - Transaction Protection on Flow Blockchain.
+A dashboard for FlowSure - Transaction Protection on Flow Blockchain.
 
 ## Features
 
 - **Dashboard**: Monitor active protections, retry queue, claims, and vault stats
-- **FROTH Staking**: Stake FROTH tokens to unlock insurance discounts and earn rewards
+- **Scheduled Transaction**: Schedule transactions to any particular date and time, user can also schedule recurring payments as well
+- **FLOW Staking**: Stake FLOW tokens to unlock insurance discounts and earn rewards
 - **Dapper Protection**: Protect your valuable Dapper NFTs (NBA Top Shot, NFL All Day, Disney Pinnacle)
 - **Insure Transaction**: Wrap transactions with automatic retry protection
-- **Flo Mascot**: Interactive mascot with context-aware states and animations
 
 ## Tech Stack
 
@@ -99,11 +99,11 @@ src/
 - Claims/compensations history
 - Vault overview stats
 
-### FROTH Staking (`/froth`)
-- Stake/unstake FROTH tokens
+### FLOW Staking (`/flow`)
+- Stake/unstake FLOW tokens
 - View rewards and discount tier
 - Leaderboard of top stakers
-- Real-time FROTH price
+- Real-time FLOW price
 
 ### Dapper Protection (`/dapper`)
 - Connect Dapper wallet
@@ -116,57 +116,6 @@ src/
 - Insurance parameters form
 - Fee calculator with FROTH discount
 - Execute protected transaction
-
-## Flo Mascot States
-
-The Flo mascot changes appearance based on context:
-
-1. **Idle** 🌊 - Default floating animation
-2. **Froth** 🫧 - Purple/bubbly on FROTH page
-3. **Dapper** 🏀 - Sports theme on Dapper page
-4. **Success** 😎 - Transaction succeeded
-5. **Retry** 😰 - Transaction retrying
-6. **Compensated** 🥳 - User received compensation
-
-## API Integration
-
-The app integrates with the FlowSure backend via REST API:
-
-### FROTH Endpoints
-- `GET /api/froth/price` - Get FROTH price
-- `POST /api/froth/stake` - Stake FROTH
-- `POST /api/froth/unstake` - Unstake FROTH
-- `GET /api/froth/staker/:address` - Get staker info
-- `GET /api/froth/leaderboard` - Get leaderboard
-
-### Dapper Endpoints
-- `GET /api/dapper/assets/:address` - Get user's NFTs
-- `POST /api/dapper/insure` - Insure NFT
-- `GET /api/dapper/history/:address` - Get protection history
-
-### Metrics Endpoints
-- `GET /api/metrics/staking` - Staking metrics
-- `GET /api/metrics/protection` - Protection metrics
-- `GET /api/metrics/vault` - Vault metrics
-
-## Flow Wallet Integration
-
-The app uses FCL (Flow Client Library) for wallet connection:
-
-```typescript
-import { fcl } from '@/lib/flow-config';
-
-// Connect wallet
-await fcl.authenticate();
-
-// Disconnect wallet
-await fcl.unauthenticate();
-
-// Get current user
-fcl.currentUser.subscribe((user) => {
-  console.log(user.addr, user.loggedIn);
-});
-```
 
 ## Build & Deploy
 
@@ -199,6 +148,3 @@ vercel deploy
 3. Test thoroughly
 4. Submit a pull request
 
-## License
-
-MIT License - see LICENSE file for details
